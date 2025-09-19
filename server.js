@@ -5,6 +5,10 @@ const cors = require('cors');
 const abuseTypesRoutes = require('./src/routes/abuseTypes');
 const adminRoutes = require('./src/routes/admin');
 const adminHome = require('./src/routes/adminHome');
+const statusCheckRouter = require('./src/routes/caseNumber');
+
+
+
 
 const app = express();
 const PORT = 3000;
@@ -16,6 +20,8 @@ app.use(bodyParser.json());
 app.use('/admin', adminRoutes);
 app.use('/abuse_types', abuseTypesRoutes);
 app.use('/abuse_reports', adminHome);
+app.use('/status-check', statusCheckRouter);
+
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
