@@ -1,8 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database'); // your database connection
+const nodemailer = require('nodemailer');
 
+// 1️⃣ Configure Nodemailer
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  auth: {
+    user: 'janetlehike@gmail.com',   // your Gmail
+    pass: 'xvanjiuoudmhmgrc'         // your Gmail App Password
+  }
+});
 
+// 2️⃣ Generate unique case number
 const generateCaseNumber = () => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -12,6 +24,7 @@ const generateCaseNumber = () => {
   return `CASE-${result}`;
 };
 
+// 3️⃣ Create a new report
 router.post('/', (req, res) => {
   const {
     abuse_type_id,
@@ -39,15 +52,29 @@ router.post('/', (req, res) => {
 
   db.query(query, values, (err, result) => {
     if (err) return res.status(500).json({ message: 'Server error', error: err.message });
+
+    // 4️⃣ Send email with case number
+    const mailOptions = {
+      from: '"Safe Space" <janetlehike@gmail.com>',
+      to: reporter_email,
+      subject: 'Safe Space - Report Confirmation',
+      text: `Hello ${full_name || 'User'},\n\nYour report has been created successfully!\nCase Number: ${case_number}\n\nThank you for reporting.`
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Error sending email:', error);
+        // Not failing the request if email fails
+      } else {
+        console.log('Email sent:', info.response);
+      }
+    });
+
     res.status(201).json({ message: 'Report created', reportId: result.insertId, case_number });
   });
 });
 
-
-
-
-
-// 2️⃣ Get all reports (case_number + status)
+// 5️⃣ Get all reports (case_number + status)
 router.get('/', (req, res) => {
   const query = 'SELECT case_number, status FROM reports';
   db.query(query, (err, results) => {
@@ -56,7 +83,7 @@ router.get('/', (req, res) => {
   });
 });
 
-// 3️⃣ Get a single report by case_number (full details)
+// 6️⃣ Get a single report by case_number (full details)
 router.get('/:case_number', (req, res) => {
   const { case_number } = req.params;
   if (!case_number) return res.status(400).json({ message: 'Case number is required' });
@@ -69,8 +96,7 @@ router.get('/:case_number', (req, res) => {
   });
 });
 
-
-// GET subtypes for a given abuse type
+// 7️⃣ GET subtypes for a given abuse type
 router.get('/subtypes/:abuse_type_id', (req, res) => {
   const { abuse_type_id } = req.params;
   if (!abuse_type_id) return res.status(400).json({ message: 'Abuse type ID is required' });
@@ -81,6 +107,5 @@ router.get('/subtypes/:abuse_type_id', (req, res) => {
     res.json(results);
   });
 });
-
 
 module.exports = router;
