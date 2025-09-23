@@ -5,7 +5,7 @@ const verifyAdmin = require('../middleware/auth');
 
 // GET all abuse reports
 router.get('/',verifyAdmin, (req, res) => {
-    db.query('SELECT * FROM abuse_reports', (err, results) => {
+    db.query('SELECT * FROM reports', (err, results) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
@@ -21,7 +21,7 @@ router.patch('/:id', verifyAdmin, (req, res) => {
 
   if (!status) return res.status(400).json({ message: 'Status is required' });
 
-  const query = 'UPDATE abuse_reports SET status = ? WHERE id = ?';
+  const query = 'UPDATE reports SET status = ? WHERE id = ?';
   db.query(query, [status, id], (err, result) => {
     if (err) return res.status(500).json({ message: err.message });
 
