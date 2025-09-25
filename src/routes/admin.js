@@ -8,7 +8,7 @@ const { sendVerificationEmail } = require('../utils/mailer');
 
 const SECRET_KEY = process.env.SECRET_KEY || 'fallbacksecret';
 
-// Validate login (check username/password before sending email)
+// Validate login: only check credentials
 router.post('/validate-login', (req, res) => {
     const { username, password } = req.body;
 
@@ -18,27 +18,20 @@ router.post('/validate-login', (req, res) => {
     const query = 'SELECT * FROM users WHERE username = ?';
     db.query(query, [username], async (err, results) => {
         if (err) return res.status(500).json({ message: 'Server error' });
-
         if (results.length === 0)
             return res.status(401).json({ message: 'Invalid username or password' });
 
         const user = results[0];
 
-        // Compare the provided password with hashed password
         const passwordMatch = await bcrypt.compare(password, user.password);
         if (!passwordMatch)
             return res.status(401).json({ message: 'Invalid username or password' });
-
-        // Optional: check if already verified
-        if (user.verified === 1) {
-            return res.status(200).json({ message: 'Already verified. You can proceed to login.' });
-        }
 
         return res.status(200).json({ message: 'Valid credentials' });
     });
 });
 
-// Login → send verification code only if email matches
+// Login → send OTP always (ignore email_verified_at)
 router.post('/login', (req, res) => {
     const { username, password, email } = req.body;
 
@@ -55,15 +48,11 @@ router.post('/login', (req, res) => {
         const passwordMatch = await bcrypt.compare(password, user.password);
         if (!passwordMatch) return res.status(401).json({ message: 'Invalid username or password' });
 
-        if (user.email_verified_at && user.email_verified_at !== null && user.verified === 1) {
-            return res.status(200).json({ message: 'Already verified. You can log in.' });
-        }
-
-        if (user.username !== username || email !== user.email) {
+        if (email !== user.email) {
             return res.status(401).json({ message: 'Email does not match user record' });
         }
 
-
+        // Generate new OTP every login
         const verificationCode = Math.floor(100000 + Math.random() * 900000);
 
         const saveCodeQuery = 'UPDATE users SET verification_code = ?, verified = 0 WHERE username = ?';
@@ -122,9 +111,22 @@ router.post('/verify', (req, res) => {
     });
 });
 
-// Logout
+// Logout → reset verified status
 router.post('/logout', (req, res) => {
-    return res.status(200).json({ message: 'Logged out successfully' });
+    const { username } = req.body;
+
+    if (!username) return res.status(400).json({ message: 'Username required to logout' });
+
+    const query = `
+        UPDATE users
+        SET verified = 0, email_verified_at = NULL
+        WHERE username = ?`;
+
+    db.query(query, [username], (err) => {
+        if (err) return res.status(500).json({ message: 'Error updating logout status' });
+
+        return res.status(200).json({ message: 'Logged out successfully. Verification reset.' });
+    });
 });
 
 module.exports = router;
