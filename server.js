@@ -8,6 +8,7 @@ const adminHome = require('./src/routes/adminHome');
 const statusCheckRouter = require('./src/routes/caseNumber');
 // const reportsRouter = require('./src/routes/reports'); 
 const reportsRoutes = require('./src/routes/reports');
+const schoolRoutes = require('./src/routes/schools');
 
 
 
@@ -25,6 +26,8 @@ app.use('/abuse_reports', adminHome);
 app.use('/status-check', statusCheckRouter);
 // app.use('/reports', reportsRouter);
 app.use('/reports', reportsRoutes);
+
+app.use('/schools', schoolRoutes);
 
 
 app.listen(PORT, () => {

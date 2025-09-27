@@ -111,4 +111,34 @@ router.get('/subtypes/:abuse_type_id', (req, res) => {
   });
 });
 
+// ✏️ Update report by case_number
+router.put('/:case_number', (req, res) => {
+  const { case_number } = req.params;
+  const {
+    description,
+    phone_number,
+    full_name,
+    age,
+    location,
+    school_name,
+    status
+  } = req.body;
+
+  const query = `
+    UPDATE reports
+    SET description = ?, phone_number = ?, full_name = ?, age = ?, location = ?, school_name = ?, status = ?, updated_at = NOW()
+    WHERE case_number = ?
+  `;
+
+  const values = [description, phone_number, full_name, age, location, school_name, status, case_number];
+
+  db.query(query, values, (err, result) => {
+    if (err) return res.status(500).json({ message: 'Server error', error: err.message });
+    if (result.affectedRows === 0) return res.status(404).json({ message: 'Report not found' });
+
+    res.json({ message: 'Report updated successfully', case_number });
+  });
+});
+
+
 module.exports = router;
