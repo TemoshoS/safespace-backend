@@ -9,6 +9,7 @@ const adminHome = require('./src/routes/adminHome');
 const statusCheckRouter = require('./src/routes/caseNumber');
 // const reportsRouter = require('./src/routes/reports'); 
 const reportsRoutes = require('./src/routes/reports');
+const schoolsRouter = require('./src/routes/schools');
 
 
 
@@ -18,6 +19,7 @@ const PORT = 3000;
 
 app.use(cors());
 app.use(bodyParser.json());
+app.use('/schools', schoolsRouter);
 
 // Routes
 app.use('/admin', adminRoutes);
