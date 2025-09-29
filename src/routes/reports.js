@@ -111,6 +111,36 @@ router.get('/subtypes/:abuse_type_id', (req, res) => {
   });
 });
 
+// // ✏️ Update report by case_number
+// router.put('/:case_number', (req, res) => {
+//   const { case_number } = req.params;
+//   const {
+//     description,
+//     phone_number,
+//     full_name,
+//     age,
+//     location,
+//     school_name,
+//     status
+//   } = req.body;
+
+//   const query = `
+//     UPDATE reports
+//     SET description = ?, phone_number = ?, full_name = ?, age = ?, location = ?, school_name = ?, status = ?, updated_at = NOW()
+//     WHERE case_number = ?
+//   `;
+
+//   const values = [description, phone_number, full_name, age, location, school_name, status, case_number];
+
+//   db.query(query, values, (err, result) => {
+//     if (err) return res.status(500).json({ message: 'Server error', error: err.message });
+//     if (result.affectedRows === 0) return res.status(404).json({ message: 'Report not found' });
+
+//     res.json({ message: 'Report updated successfully', case_number });
+//   });
+// });
+
+
 // ✏️ Update report by case_number
 router.put('/:case_number', (req, res) => {
   const { case_number } = req.params;
@@ -136,7 +166,31 @@ router.put('/:case_number', (req, res) => {
     if (err) return res.status(500).json({ message: 'Server error', error: err.message });
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Report not found' });
 
-    res.json({ message: 'Report updated successfully', case_number });
+    // 🔎 Fetch reporter's email after update
+    const fetchQuery = 'SELECT reporter_email, full_name FROM reports WHERE case_number = ?';
+    db.query(fetchQuery, [case_number], (err, rows) => {
+      if (err) {
+        console.error("Error fetching reporter email:", err);
+      } else if (rows.length > 0) {
+        const { reporter_email, full_name } = rows[0];
+
+        if (reporter_email) {
+          const mailOptions = {
+            from: '"Safe Space" <janetlehike@gmail.com>',
+            to: reporter_email,
+            subject: 'Safe Space - Report Status Update',
+            text: `Hello ${full_name || 'User'},\n\nYour report (Case Number: ${case_number}) has been updated.\n\nNew Status: ${status}\n\nThank you for your patience.`
+          };
+
+          transporter.sendMail(mailOptions, (error, info) => {
+            if (error) console.error('Error sending status update email:', error);
+            else console.log('Status update email sent:', info.response);
+          });
+        }
+      }
+    });
+
+    res.json({ message: 'Report updated successfully', case_number, new_status: status });
   });
 });
 
