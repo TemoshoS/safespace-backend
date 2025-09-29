@@ -141,6 +141,7 @@ router.get('/subtypes/:abuse_type_id', (req, res) => {
 // });
 
 
+
 // ✏️ Update report by case_number
 router.put('/:case_number', (req, res) => {
   const { case_number } = req.params;
@@ -190,9 +191,38 @@ router.put('/:case_number', (req, res) => {
       }
     });
 
-    res.json({ message: 'Report updated successfully', case_number, new_status: status });
+    // ✅ Extra: if status = Escalated, tell frontend to ask "Are you okay?"
+    const needsCheck = status === 'Escalated';
+
+    res.json({ 
+      message: 'Report updated successfully', 
+      case_number, 
+      new_status: status,
+      needs_check: needsCheck   // 👈 added field
+    });
   });
 });
+
+
+
+// 8️⃣ Reporter responds to "Are you okay?"
+router.post('/:case_number/response', (req, res) => {
+  const { case_number } = req.params;
+  const { ok } = req.body; // true/false
+
+  if (ok === undefined) {
+    return res.status(400).json({ message: 'Response is required (true/false)' });
+  }
+
+  const query = `UPDATE reports SET reporter_ok = ? WHERE case_number = ?`;
+  db.query(query, [ok ? 1 : 0, case_number], (err, result) => {
+    if (err) return res.status(500).json({ message: 'Server error', error: err.message });
+    if (result.affectedRows === 0) return res.status(404).json({ message: 'Case not found' });
+
+    res.json({ message: 'Response recorded', case_number, ok });
+  });
+});
+
 
 
 module.exports = router;
