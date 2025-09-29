@@ -9,10 +9,14 @@ const transporter = nodemailer.createTransport({
   port: 465,
   secure: true,
   auth: {
-    user: 'janetlehike@gmail.com',   // your Gmail
-    pass: 'xvanjiuoudmhmgrc'         // your Gmail App Password
+    user: 'nhlakaexcellent9@gmail.com',
+    pass: 'vhwkevnjnuoqrruh'  // App password
   }
 });
+
+
+
+
 
 // 2️⃣ Generate unique case number
 const generateCaseNumber = () => {
@@ -55,7 +59,7 @@ router.post('/', (req, res) => {
 
     // 4️⃣ Send email with case number
     const mailOptions = {
-      from: '"Safe Space" <janetlehike@gmail.com>',
+      from: '"Safe Space" <nhlakaexcellent9@gmail.com>',
       to: reporter_email,
       subject: 'Safe Space - Report Confirmation',
       text: `Hello ${full_name || 'User'},\n\nYour report has been created successfully!\nCase Number: ${case_number}\n\nThank you for reporting.`
@@ -83,6 +87,13 @@ router.get('/', (req, res) => {
   });
 });
 
+router.get('/test-db', (req, res) => {
+  db.query('SELECT COUNT(*) AS total FROM reports', (err, results) => {
+    if (err) return res.status(500).json({ message: 'DB connection failed', error: err.message });
+    res.json({ message: 'DB connected!', totalReports: results[0].total });
+  });
+});
+
 // 6️⃣ Get a single report by case_number (full details)
 router.get('/:case_number', (req, res) => {
   const { case_number } = req.params;
@@ -107,5 +118,42 @@ router.get('/subtypes/:abuse_type_id', (req, res) => {
     res.json(results);
   });
 });
+
+// Update report status and notify user
+router.put('/:case_number/status', (req, res) => {
+  const { case_number } = req.params;
+  const { status } = req.body;
+
+  if (!status) return res.status(400).json({ message: 'Status is required' });
+
+  const selectQuery = 'SELECT * FROM reports WHERE case_number = ?';
+  db.query(selectQuery, [case_number], (err, results) => {
+    if (err) return res.status(500).json({ message: 'Server error', error: err.message });
+    if (results.length === 0) return res.status(404).json({ message: 'Report not found' });
+
+    const report = results[0];
+
+    const updateQuery = 'UPDATE reports SET status = ?, updated_at = NOW() WHERE case_number = ?';
+    db.query(updateQuery, [status, case_number], (err2) => {
+      if (err2) return res.status(500).json({ message: 'Server error', error: err2.message });
+
+      // Send email notification
+      const mailOptions = {
+        from: '"Safe Space" <nhlakaexcellent9@gmail.com>',
+        to: report.reporter_email,
+        subject: 'Safe Space - Report Status Update',
+        text: `Hello ${report.full_name || 'User'},\n\nYour report (Case: ${case_number}) status is now: ${status}.\n\nThank you.`
+      };
+
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) console.error('Email error:', error);
+        else console.log('Status email sent:', info.response);
+      });
+
+      res.json({ message: 'Status updated and user notified', case_number, newStatus: status });
+    });
+  });
+});
+
 
 module.exports = router;

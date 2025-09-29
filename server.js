@@ -2,15 +2,11 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
-
 const abuseTypesRoutes = require('./src/routes/abuseTypes');
 const adminRoutes = require('./src/routes/admin');
-const adminHome = require('./src/routes/adminHome');
 const statusCheckRouter = require('./src/routes/caseNumber');
-// const reportsRouter = require('./src/routes/reports'); 
-const reportsRoutes = require('./src/routes/reports');
-
-
+const reportsRoutes = require('./src/routes/reports'); // reports table routes
+const authRoutes = require('./src/middleware/auth');
 
 
 const app = express();
@@ -22,11 +18,13 @@ app.use(bodyParser.json());
 // Routes
 app.use('/admin', adminRoutes);
 app.use('/abuse_types', abuseTypesRoutes);
-app.use('/abuse_reports', adminHome);
-app.use('/status-check', statusCheckRouter);
-// app.use('/reports', reportsRouter);
 app.use('/reports', reportsRoutes);
+app.use('/status-check', statusCheckRouter);
+app.use('/abuse_reports', reportsRoutes); // optional alias
+app.use('/auth', authRoutes);
 
+// Optional alias for frontend convenience
+app.use('/abuse_reports', reportsRoutes); // allows frontend code using /abuse_reports to still work
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
