@@ -48,4 +48,23 @@ function sendResetCode(to, code) {
     return transporter.sendMail(mailOptions);
 }
 
-module.exports = { sendVerificationEmail, sendResetCode };
+//user status changed
+function sendStatusEmail(to,fullName, caseNumber, status) {
+    const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to,
+        subject: `SafeSpace Report Update - Case #${caseNumber}`,
+        html: `
+            <p>Hello, #${fullName}</p>
+            <p>The status of your report <strong>Case #${caseNumber}</strong> has been updated.</p>
+            <p>New Status: <strong>${status}</strong></p>
+            <p>We are working hard to ensure your case is handled with care.</p>
+            <p>Stay safe,</p>
+            <p><em>SafeSpace Team</em></p>
+        `
+    };
+
+    return transporter.sendMail(mailOptions);
+}
+
+module.exports = { sendVerificationEmail, sendResetCode,sendStatusEmail };

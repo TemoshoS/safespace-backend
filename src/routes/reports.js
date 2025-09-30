@@ -14,14 +14,20 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// 2️⃣ Generate unique case number
-const generateCaseNumber = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < 7; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return `CASE-${result}`;
+//Generate Case Number
+const abuseTypeMap = {
+  1: "BU", // Bullying
+  2: "SB", // Substance Abuse
+  3: "SX", // Sexual Abuse
+  4: "TP", // Teenage Pregnancy
+  5: "WP", // Weapons
+  6: "VL"  // Violence
+};
+
+const generateCaseNumber = (abuse_type_id) => {
+  const prefix = abuseTypeMap[abuse_type_id] || "XX"; // fallback if not found
+  const randomDigits = Math.floor(100000 + Math.random() * 900000); // 6-digit number
+  return `CASE-${prefix}${randomDigits}`;
 };
 
 // 3️⃣ Create a new report
@@ -40,7 +46,7 @@ router.post('/', (req, res) => {
     is_anonymous
   } = req.body;
 
-  const case_number = generateCaseNumber();
+  const case_number = generateCaseNumber(abuse_type_id);
 
   const query = `
     INSERT INTO reports
@@ -53,7 +59,7 @@ router.post('/', (req, res) => {
   db.query(query, values, (err, result) => {
     if (err) return res.status(500).json({ message: 'Server error', error: err.message });
 
-    // 4️⃣ Send email with case number
+    // Send confirmation email with case number (same as before)
     const mailOptions = {
       from: '"Safe Space" <janetlehike@gmail.com>',
       to: reporter_email,
@@ -62,17 +68,14 @@ router.post('/', (req, res) => {
     };
 
     transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error('Error sending email:', error);
-        // Not failing the request if email fails
-      } else {
-        console.log('Email sent:', info.response);
-      }
+      if (error) console.error('Error sending email:', error);
+      else console.log('Email sent:', info.response);
     });
 
     res.status(201).json({ message: 'Report created', reportId: result.insertId, case_number });
   });
 });
+
 
 // 5️⃣ Get all reports (case_number + status)
 router.get('/', (req, res) => {
@@ -107,5 +110,35 @@ router.get('/subtypes/:abuse_type_id', (req, res) => {
     res.json(results);
   });
 });
+
+// ✏️ Update report by case_number
+router.put('/:case_number', (req, res) => {
+  const { case_number } = req.params;
+  const {
+    description,
+    phone_number,
+    full_name,
+    age,
+    location,
+    school_name,
+    status
+  } = req.body;
+
+  const query = `
+    UPDATE reports
+    SET description = ?, phone_number = ?, full_name = ?, age = ?, location = ?, school_name = ?, status = ?, updated_at = NOW()
+    WHERE case_number = ?
+  `;
+
+  const values = [description, phone_number, full_name, age, location, school_name, status, case_number];
+
+  db.query(query, values, (err, result) => {
+    if (err) return res.status(500).json({ message: 'Server error', error: err.message });
+    if (result.affectedRows === 0) return res.status(404).json({ message: 'Report not found' });
+
+    res.json({ message: 'Report updated successfully', case_number });
+  });
+});
+
 
 module.exports = router;
