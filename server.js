@@ -1,37 +1,41 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 
-
-const abuseTypesRoutes = require('./src/routes/abuseTypes');
-const adminRoutes = require('./src/routes/admin');
-const adminHome = require('./src/routes/adminHome');
-const  adminProfileRoutes = require('./src/routes/adminProfile');
-const statusCheckRouter = require('./src/routes/caseNumber');
-// const reportsRouter = require('./src/routes/reports'); 
-const reportsRoutes = require('./src/routes/reports');
-const schoolsRouter = require('./src/routes/schools');
-
-
-
-
-const app = express();
+const app = express(); // ← must come first
 const PORT = 3000;
 
+// Create uploads folder if not exists
+const uploadDir = path.join(__dirname, 'src/uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+// Serve uploads folder publicly
+app.use('/uploads', express.static(uploadDir));
+
+// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
 // Routes
+const abuseTypesRoutes = require('./src/routes/abuseTypes');
+const adminRoutes = require('./src/routes/admin');
+const adminHome = require('./src/routes/adminHome');
+const adminProfileRoutes = require('./src/routes/adminProfile');
+const statusCheckRouter = require('./src/routes/caseNumber');
+const reportsRoutes = require('./src/routes/reports');
+const schoolsRouter = require('./src/routes/schools');
+
 app.use('/admin', adminRoutes);
 app.use('/abuse_types', abuseTypesRoutes);
 app.use('/abuse_reports', adminHome);
 app.use('/admin-profile', adminProfileRoutes);
 app.use('/status-check', statusCheckRouter);
-// app.use('/reports', reportsRouter);
 app.use('/reports', reportsRoutes);
 app.use('/schools', schoolsRouter);
 
-
+// Start server
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
