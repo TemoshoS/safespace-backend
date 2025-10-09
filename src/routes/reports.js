@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../database'); // your database connection
+const db = require('../database'); 
 const nodemailer = require('nodemailer');
+const verifyAdmin = require('../middleware/auth');
+const { sendStatusEmail } = require('../utils/mailer');
 
 // 1️⃣ Configure Nodemailer
 const transporter = nodemailer.createTransport({
@@ -9,28 +11,28 @@ const transporter = nodemailer.createTransport({
   port: 465,
   secure: true,
   auth: {
-    user: 'janetlehike@gmail.com',   // your Gmail
-    pass: 'xvanjiuoudmhmgrc'         // your Gmail App Password
+    user: 'janetlehike@gmail.com',
+    pass: 'xvanjiuoudmhmgrc' // Gmail App Password
   }
 });
 
-//Generate Case Number
+// Generate Case Number
 const abuseTypeMap = {
-  1: "BU", // Bullying
-  2: "SB", // Substance Abuse
-  3: "SX", // Sexual Abuse
-  4: "TP", // Teenage Pregnancy
-  5: "WP", // Weapons
-  6: "VL"  // Violence
+  1: "BU",
+  2: "SB",
+  3: "SX",
+  4: "TP",
+  5: "WP",
+  6: "VL"
 };
 
 const generateCaseNumber = (abuse_type_id) => {
-  const prefix = abuseTypeMap[abuse_type_id] || "XX"; // fallback if not found
-  const randomDigits = Math.floor(100000 + Math.random() * 900000); // 6-digit number
+  const prefix = abuseTypeMap[abuse_type_id] || "XX";
+  const randomDigits = Math.floor(100000 + Math.random() * 900000);
   return `CASE-${prefix}${randomDigits}`;
 };
 
-// 3️⃣ Create a new report
+// 2️⃣ Create a new report
 router.post('/', (req, res) => {
   const {
     abuse_type_id,
@@ -59,7 +61,7 @@ router.post('/', (req, res) => {
   db.query(query, values, (err, result) => {
     if (err) return res.status(500).json({ message: 'Server error', error: err.message });
 
-    // Send confirmation email with case number (same as before)
+    // Send confirmation email
     const mailOptions = {
       from: '"Safe Space" <janetlehike@gmail.com>',
       to: reporter_email,
@@ -76,18 +78,34 @@ router.post('/', (req, res) => {
   });
 });
 
+// 3️⃣ Get all reports (admin detailed view)
+router.get('/', verifyAdmin, (req, res) => {
+  const query = `
+    SELECT 
+      reports.id,
+      reports.case_number,
+      reports.reporter_email,
+      reports.phone_number,
+      reports.description,
+      reports.image_path,
+      reports.created_at,
+      reports.status,
+      abuse_types.type_name AS abuse_type,
+      subtypes.sub_type_name AS subtype
+    FROM reports
+    LEFT JOIN abuse_types ON reports.abuse_type_id = abuse_types.id
+    LEFT JOIN subtypes ON reports.subtype_id = subtypes.id
+    ORDER BY reports.created_at DESC
+  `;
 
-// 5️⃣ Get all reports (case_number + status)
-router.get('/', (req, res) => {
-  const query = 'SELECT case_number, status FROM reports';
   db.query(query, (err, results) => {
     if (err) return res.status(500).json({ message: 'Server error', error: err.message });
     res.json(results);
   });
 });
 
-// 6️⃣ Get a single report by case_number (full details)
-router.get('/:case_number', (req, res) => {
+// 4️⃣ Get a single report by case_number
+router.get('/case/:case_number', (req, res) => {
   const { case_number } = req.params;
   if (!case_number) return res.status(400).json({ message: 'Case number is required' });
 
@@ -99,7 +117,7 @@ router.get('/:case_number', (req, res) => {
   });
 });
 
-// 7️⃣ GET subtypes for a given abuse type
+// 5️⃣ GET subtypes for a given abuse type
 router.get('/subtypes/:abuse_type_id', (req, res) => {
   const { abuse_type_id } = req.params;
   if (!abuse_type_id) return res.status(400).json({ message: 'Abuse type ID is required' });
@@ -111,7 +129,7 @@ router.get('/subtypes/:abuse_type_id', (req, res) => {
   });
 });
 
-// ✏️ Update report by case_number
+// 6️⃣ Update report by case_number
 router.put('/:case_number', (req, res) => {
   const { case_number } = req.params;
   const {
@@ -121,16 +139,17 @@ router.put('/:case_number', (req, res) => {
     age,
     location,
     school_name,
-    status
+    status,
+    reason
   } = req.body;
 
   const query = `
     UPDATE reports
-    SET description = ?, phone_number = ?, full_name = ?, age = ?, location = ?, school_name = ?, status = ?, updated_at = NOW()
+    SET description = ?, phone_number = ?, full_name = ?, age = ?, location = ?, school_name = ?, status = ?, reason = ?, updated_at = NOW()
     WHERE case_number = ?
   `;
 
-  const values = [description, phone_number, full_name, age, location, school_name, status, case_number];
+  const values = [description, phone_number, full_name, age, location, school_name, status, reason, case_number];
 
   db.query(query, values, (err, result) => {
     if (err) return res.status(500).json({ message: 'Server error', error: err.message });
@@ -140,5 +159,43 @@ router.put('/:case_number', (req, res) => {
   });
 });
 
+// 7️⃣ Update status + reason by report ID + send email
+router.patch('/:id', verifyAdmin, (req, res) => {
+  const { id } = req.params;
+  const { status, reason } = req.body;
+
+  if (!status || !reason) return res.status(400).json({ message: 'Status and reason are required' });
+
+  // Update report
+  db.query(
+    'UPDATE reports SET status = ?, reason = ?, updated_at = NOW() WHERE id = ?',
+    [status, reason, id],
+    (err, result) => {
+      if (err) return res.status(500).json({ message: 'Server error', error: err.message });
+      if (result.affectedRows === 0) return res.status(404).json({ message: 'Report not found' });
+
+      // Fetch reporter info to send email
+      db.query(
+        'SELECT reporter_email, full_name, case_number FROM reports WHERE id = ?',
+        [id],
+        async (err2, rows) => {
+          if (err2 || rows.length === 0) {
+            return res.json({ message: 'Status updated but email not sent' });
+          }
+
+          const { reporter_email, full_name, case_number } = rows[0];
+
+          try {
+            await sendStatusEmail(reporter_email, full_name, case_number, status);
+            res.json({ message: 'Status and reason updated, email sent' });
+          } catch (e) {
+            console.error('Email error:', e);
+            res.json({ message: 'Status updated but failed to send email' });
+          }
+        }
+      );
+    }
+  );
+});
 
 module.exports = router;

@@ -29,10 +29,11 @@ const schoolsRouter = require('./src/routes/schools');
 
 app.use('/admin', adminRoutes);
 app.use('/abuse_types', abuseTypesRoutes);
-app.use('/abuse_reports', adminHome);
+app.use('/abuse_reports', reportsRoutes);
 app.use('/admin-profile', adminProfileRoutes);
 app.use('/status-check', statusCheckRouter);
 app.use('/reports', reportsRoutes);
+
 app.use('/schools', schoolsRouter);
 
 // Start server
