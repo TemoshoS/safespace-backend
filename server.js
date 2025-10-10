@@ -4,8 +4,16 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-const app = express(); // ← must come first
+const app = express();
 const PORT = 3000;
+
+// ✅ Increase JSON & URL-encoded body size limits
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+
+// OR using express only (also works)
+// app.use(express.json({ limit: '50mb' }));
+// app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Create uploads folder if not exists
 const uploadDir = path.join(__dirname, 'src/uploads');
@@ -16,7 +24,6 @@ app.use('/uploads', express.static(uploadDir));
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
 
 // Routes
 const abuseTypesRoutes = require('./src/routes/abuseTypes');
@@ -33,7 +40,6 @@ app.use('/abuse_reports', reportsRoutes);
 app.use('/admin-profile', adminProfileRoutes);
 app.use('/status-check', statusCheckRouter);
 app.use('/reports', reportsRoutes);
-
 app.use('/schools', schoolsRouter);
 
 // Start server
