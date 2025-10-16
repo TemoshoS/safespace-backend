@@ -16,8 +16,9 @@ app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 // app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Create uploads folder if not exists
-const uploadDir = path.join(__dirname, 'src/uploads');
+const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+app.use('/uploads', express.static(uploadDir));
 
 // Serve uploads folder publicly
 app.use('/uploads', express.static(uploadDir));

@@ -49,7 +49,7 @@ function sendResetCode(to, code) {
 }
 
 //user status changed
-function sendStatusEmail(to,fullName, caseNumber, status) {
+function sendStatusEmail(to,fullName, caseNumber, status,reason) {
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to,
@@ -58,7 +58,7 @@ function sendStatusEmail(to,fullName, caseNumber, status) {
             <p>Hello, #${fullName}</p>
             <p>The status of your report <strong>Case #${caseNumber}</strong> has been updated.</p>
             <p>New Status: <strong>${status}</strong></p>
-            <p>We are working hard to ensure your case is handled with care.</p>
+            <p><strong>Reason:</strong> ${reason}</p>
             <p>Stay safe,</p>
             <p><em>SafeSpace Team</em></p>
         `
