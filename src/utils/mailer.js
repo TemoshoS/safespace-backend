@@ -1,4 +1,4 @@
-require('dotenv').config(); 
+require('dotenv').config();
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
@@ -9,7 +9,7 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Admin login verification code
+// 1️⃣ Admin login verification email
 function sendVerificationEmail(to, code) {
     const mailOptions = {
         from: process.env.EMAIL_USER,
@@ -28,7 +28,7 @@ function sendVerificationEmail(to, code) {
     return transporter.sendMail(mailOptions);
 }
 
-// Forgot password / reset code
+// 2️⃣ Forgot password / reset email
 function sendResetCode(to, code) {
     const mailOptions = {
         from: process.env.EMAIL_USER,
@@ -48,14 +48,14 @@ function sendResetCode(to, code) {
     return transporter.sendMail(mailOptions);
 }
 
-//user status changed
-function sendStatusEmail(to,fullName, caseNumber, status,reason) {
+// 3️⃣ Report status update email
+function sendStatusEmail(to, fullName, caseNumber, status, reason) {
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to,
         subject: `SafeSpace Report Update - Case #${caseNumber}`,
         html: `
-            <p>Hello, #${fullName}</p>
+            <p>Hello, ${fullName || 'User'},</p>
             <p>The status of your report <strong>Case #${caseNumber}</strong> has been updated.</p>
             <p>New Status: <strong>${status}</strong></p>
             <p><strong>Reason:</strong> ${reason}</p>
@@ -67,4 +67,51 @@ function sendStatusEmail(to,fullName, caseNumber, status,reason) {
     return transporter.sendMail(mailOptions);
 }
 
-module.exports = { sendVerificationEmail, sendResetCode,sendStatusEmail };
+// 4️⃣ Report confirmation email
+function sendReportConfirmation(to, fullName, caseNumber) {
+    const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to,
+        subject: 'SafeSpace - Report Confirmation',
+        html: `
+            <p>Hello, ${fullName || 'User'},</p>
+            <p>Your report has been created successfully!</p>
+            <p>Case Number: <strong>${caseNumber}</strong></p>
+            <p>Thank you for taking the time to report this issue. Our team will review it shortly.</p>
+            <p>Stay safe,</p>
+            <p><em>SafeSpace Team</em></p>
+        `
+    };
+
+    return transporter.sendMail(mailOptions);
+}
+
+// 5️⃣ Notify Admin of new report
+function sendAdminNewReportNotification(adminEmail, fullName, caseNumber, abuseTypeName, subtypeName) {
+    const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: adminEmail,
+        subject: `🛑 New Report Submitted - Case #${caseNumber}`,
+        html: `
+            <p>Hello Admin,</p>
+            <p>A new report has just been submitted on SafeSpace.</p>
+            <p><strong>Case Number:</strong> ${caseNumber}</p>
+            <p><strong>Reporter:</strong> ${fullName || 'Anonymous'}</p>
+            <p><strong>Abuse Type:</strong> ${abuseTypeName || 'Unknown'}</p>
+            <p><strong>Subtype:</strong> ${subtypeName || 'N/A'}</p>
+            <p>Please log in to your admin dashboard to review this report.</p>
+            <p>Stay safe,</p>
+            <p><em>SafeSpace System</em></p>
+        `
+    };
+
+    return transporter.sendMail(mailOptions);
+}
+
+module.exports = { 
+    sendVerificationEmail, 
+    sendResetCode, 
+    sendStatusEmail,
+    sendReportConfirmation,
+    sendAdminNewReportNotification
+};

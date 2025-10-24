@@ -70,6 +70,40 @@ router.post('/login', (req, res) => {
     });
 });
 
+// Resend OTP
+router.post('/resend-otp', (req, res) => {
+  const { username, email } = req.body;
+
+  if (!username || !email) {
+    return res.status(400).json({ message: 'Username and email required' });
+  }
+
+  const query = 'SELECT * FROM users WHERE username = ? AND email = ?';
+  db.query(query, [username, email], async (err, results) => {
+    if (err) return res.status(500).json({ message: 'Database error' });
+    if (results.length === 0) return res.status(404).json({ message: 'User not found' });
+
+    const user = results[0];
+
+    // Generate new OTP
+    const verificationCode = Math.floor(100000 + Math.random() * 900000);
+
+    // Save OTP in DB and mark as unverified
+    const saveCodeQuery = 'UPDATE users SET verification_code = ?, verified = 0 WHERE username = ?';
+    db.query(saveCodeQuery, [verificationCode, username], async (err2) => {
+      if (err2) return res.status(500).json({ message: 'Error saving OTP' });
+
+      try {
+        // Send email using your existing utility
+        await sendVerificationEmail(email, verificationCode);
+        return res.status(200).json({ message: 'OTP resent successfully' });
+      } catch (err3) {
+        return res.status(500).json({ message: 'Error sending email', error: err3.message });
+      }
+    });
+  });
+});
+
 // Verify Code + return JWT
 router.post('/verify', (req, res) => {
     const { username, code } = req.body;
