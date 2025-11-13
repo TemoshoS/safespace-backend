@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../database'); 
+const db = require('../database'); // your promise pool
 
-
-router.get('/', (req, res) => {
-    db.query('SELECT * FROM abuse_types', (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(results);
-    });
+router.get('/', async (req, res) => {
+  try {
+    const [results] = await db.query('SELECT * FROM abuse_types'); // promise API
+    res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-module.exports = router;
+module.exports = router;

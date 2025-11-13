@@ -28,17 +28,13 @@ app.use(cors());
 
 // Routes
 const abuseTypesRoutes = require('./src/routes/abuseTypes');
-const adminRoutes = require('./src/routes/admin');
-const adminHome = require('./src/routes/adminHome');
-const adminProfileRoutes = require('./src/routes/adminProfile');
 const statusCheckRouter = require('./src/routes/caseNumber');
 const reportsRoutes = require('./src/routes/reports');
 const schoolsRouter = require('./src/routes/schools');
 
-app.use('/admin', adminRoutes);
+
 app.use('/abuse_types', abuseTypesRoutes);
 app.use('/abuse_reports', reportsRoutes);
-app.use('/admin-profile', adminProfileRoutes);
 app.use('/status-check', statusCheckRouter);
 app.use('/reports', reportsRoutes);
 app.use('/schools', schoolsRouter);
