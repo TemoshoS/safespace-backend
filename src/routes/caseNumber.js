@@ -4,10 +4,18 @@ const db = require('../database');
 
 // GET status by case_number
 router.get('/:case_number', (req, res) => {
-  const { case_number } = req.params;
+  let { case_number } = req.params;
 
   if (!case_number) {
     return res.status(400).json({ message: 'Case number is required' });
+  }
+
+  // Trim whitespace to handle cases like "   "
+  case_number = case_number.trim();
+
+  // If whitespace-only was provided, return error
+  if (case_number.length === 0) {
+    return res.status(400).json({ message: 'Case number cannot be empty' });
   }
 
   const query = 'SELECT case_number, status FROM abuse_reports WHERE case_number = ?';
