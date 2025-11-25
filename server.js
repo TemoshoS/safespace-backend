@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
+
 const app = express();
 const PORT = 3000;
 
@@ -26,11 +27,16 @@ app.use('/uploads', express.static(uploadDir));
 // Middleware
 app.use(cors());
 
+//Global SQL Injection Protection Middleware (Correct placement)
+const validateRequest = require('./src/middleware/validateRequest');
+app.use(validateRequest);
+
 // Routes
 const abuseTypesRoutes = require('./src/routes/abuseTypes');
 const statusCheckRouter = require('./src/routes/caseNumber');
 const reportsRoutes = require('./src/routes/reports');
 const schoolsRouter = require('./src/routes/schools');
+
 
 
 app.use('/abuse_types', abuseTypesRoutes);

@@ -6,51 +6,97 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// -------------------- Multer Setup --------------------
+/* ------------------------------------------------------------------
+   🚨 STRICT SQL INJECTION BLOCKER
+------------------------------------------------------------------ */
+const hasSQLi = (value) => {
+  if (typeof value !== "string") return false;
+
+  const patterns = [
+    /(\bdrop\b|\bdelete\b|\binsert\b|\bupdate\b|\balter\b|\btruncate\b)/i, // SQL keywords
+    /(--|#|;)/,             // SQL comment + statement breakers
+    /['"`]/                 // Quotes that may break queries
+  ];
+
+  return patterns.some((p) => p.test(value));
+};
+
+/* SAFER CLEAN FUNCTION */
+const clean = (value) => {
+  if (!value) return "";
+  return value.replace(/[^A-Za-z0-9\s.,!?@\-]/g, "");
+};
+
+/* Keep params extremely clean */
+const cleanParam = (value) => value.replace(/[^A-Za-z0-9\-]/g, '');
+
+/* ------------------------------------------------------------------
+   📁 SAFE MULTER UPLOAD
+------------------------------------------------------------------ */
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
+  destination: (req, file, cb) => {
     const uploadsDir = path.join(__dirname, '../../uploads');
-    if (!fs.existsSync(uploadsDir)) {
+    if (!fs.existsSync(uploadsDir))
       fs.mkdirSync(uploadsDir, { recursive: true });
-    }
+
     cb(null, uploadsDir);
   },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, `report-${uniqueSuffix}${path.extname(file.originalname)}`);
+
+  filename: (req, file, cb) => {
+    const cleanName = file.originalname.replace(/[^A-Za-z0-9.\-_]/g, '');
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `report-${unique}-${cleanName}`);
   }
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 500 * 1024 * 1024 } // 50MB max
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB
 });
 
-// -------------------- Case Number Generation --------------------
+/* ------------------------------------------------------------------
+   🔢 CASE NUMBER GENERATION
+------------------------------------------------------------------ */
 const abuseTypeMap = {
-  1: "BU",
-  2: "SB",
-  3: "SX",
-  4: "TP",
-  5: "WP",
-  6: "VL"
+  1: 'BU', 2: 'SB', 3: 'SX', 4: 'TP', 5: 'WP', 6: 'VL'
 };
 
 const generateCaseNumber = async (abuse_type_id) => {
-  const prefix = abuseTypeMap[abuse_type_id] || "XX";
-  const [rows] = await db.query(`SELECT MAX(id) AS max_id FROM reports WHERE abuse_type_id = ?`, [abuse_type_id]);
+  const prefix = abuseTypeMap[abuse_type_id] || 'XX';
+  const [rows] = await db.execute(
+    'SELECT MAX(id) AS max_id FROM reports WHERE abuse_type_id = ?',
+    [abuse_type_id]
+  );
+
   const nextNum = (rows[0].max_id || 0) + 1;
-  const formattedCount = nextNum.toString().padStart(4, "0");
+  const formatted = nextNum.toString().padStart(4, '0');
+
   const now = new Date();
-  const day = String(now.getDate()).padStart(2, "0");
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  return `CASE-${prefix}${formattedCount}${day}${month}`;
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+
+  return `CASE-${prefix}${formatted}${day}${month}`;
 };
 
-
-// -------------------- Create Report --------------------
+/* ------------------------------------------------------------------
+   📝 CREATE REPORT (SECURED)
+------------------------------------------------------------------ */
 router.post('/', upload.single('file'), async (req, res) => {
   try {
+    // 🚨 Check for SQL Injection Before Anything
+    for (const [key, value] of Object.entries(req.body)) {
+      if (hasSQLi(value)) {
+        return res.status(403).json({
+          message: "Access denied: Malicious input detected"
+        });
+      }
+    }
+
+    // Clean all inputs
+    const body = Object.fromEntries(
+      Object.entries(req.body).map(([k, v]) => [k, v ? clean(v) : null])
+    );
+
     const {
       abuse_type_id,
       subtype_id,
@@ -64,169 +110,167 @@ router.post('/', upload.single('file'), async (req, res) => {
       school_name,
       status = 'Pending',
       is_anonymous = 0
-    } = req.body;
+    } = body;
 
-    if (!abuse_type_id) {
-      return res.status(400).json({ message: 'Abuse type is required' });
+    // Required fields validation
+    if (!abuse_type_id || !phone_number ||!age || !location || !school_name) {
+      return res.status(400).json({ message: "Required fields missing" });
     }
 
-    let file_path = req.file ? `/uploads/${req.file.filename}` : null;
+    const file_path = req.file ? `/uploads/${req.file.filename}` : null;
     const case_number = await generateCaseNumber(abuse_type_id);
 
     const query = `
       INSERT INTO reports
-      (abuse_type_id, subtype_id, description, reporter_email, phone_number, full_name, age, location, grade, school_name, case_number, status, is_anonymous, image_path, created_at, updated_at)
+      (abuse_type_id, subtype_id, description, reporter_email, phone_number,
+       full_name, age, location, grade, school_name, case_number, status,
+       is_anonymous, image_path, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `;
+
     const values = [
-      abuse_type_id, subtype_id, description, reporter_email, phone_number,
-      full_name, age, location, grade, school_name, case_number, status, is_anonymous, file_path
+      abuse_type_id,
+      subtype_id ?? null,
+      description,
+      reporter_email ?? null,
+      phone_number,
+      full_name ?? null,
+      age,
+      location,
+      grade ?? null,
+      school_name,
+      case_number,
+      status,
+      is_anonymous,
+      file_path
     ];
-    const [result] = await db.query(query, values);
 
-    // Send confirmation to the reporter
+    const [result] = await db.execute(query, values);
+
+    // Email reporter
     if (reporter_email) {
-      try {
-        await sendReportConfirmation(reporter_email, full_name, case_number);
-      } catch (e) {
-        console.error('Reporter email send error:', e);
-      }
+      sendReportConfirmation(reporter_email, full_name, case_number).catch(console.error);
     }
 
+    // Notify school admins
+    const [admins] = await db.execute(
+      `SELECT email, name FROM users WHERE role = 'school' AND school_name = ?`,
+      [school_name]
+    );
 
-    // Notify only the admin(s) of the selected school
-    try {
-      const [admins] = await db.query(
-        `SELECT email, name 
-     FROM users 
-     WHERE role = 'school' AND school_name = ?`,
-        [school_name]
-      );
+    const submittedAt = new Date().toLocaleString();
 
-      const submittedAt = new Date().toLocaleString(); // Format timestamp
-
-      await Promise.all(admins.map(admin =>
-        sendAdminNewReportNotification(
-          admin.email,
-          full_name,
-          case_number,
-          location,
-          submittedAt
-        )
-      ));
-    } catch (adminErr) {
-      console.error('Admin notification error:', adminErr);
-    }
-
+    admins.forEach(admin => {
+      sendAdminNewReportNotification(admin.email, full_name, case_number, location, submittedAt);
+    });
 
     res.status(201).json({
-      message: '✅ Report created successfully',
+      message: "Report created successfully",
       reportId: result.insertId,
       case_number
     });
 
   } catch (error) {
-    console.error('❌ Unexpected error:', error);
-    res.status(500).json({ message: 'Internal server error', error: error.message });
+    console.error("Report error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
-
-// -------------------- Get Single Report --------------------
+/* ------------------------------------------------------------------
+   🔍 GET SINGLE REPORT
+------------------------------------------------------------------ */
 router.get('/case/:case_number', async (req, res) => {
   try {
-    const { case_number } = req.params;
-    if (!case_number) return res.status(400).json({ message: 'Case number required' });
+    const case_number = cleanParam(req.params.case_number);
 
-    const query = `
-      SELECT reports.*, abuse_types.type_name AS abuse_type, subtypes.sub_type_name AS subtype
-      FROM reports
-      LEFT JOIN abuse_types ON reports.abuse_type_id = abuse_types.id
-      LEFT JOIN subtypes ON reports.subtype_id = subtypes.id
-      WHERE reports.case_number = ?
-    `;
+    const [results] = await db.execute(
+      `SELECT reports.*, abuse_types.type_name AS abuse_type,
+              subtypes.sub_type_name AS subtype
+       FROM reports
+       LEFT JOIN abuse_types ON reports.abuse_type_id = abuse_types.id
+       LEFT JOIN subtypes ON reports.subtype_id = subtypes.id
+       WHERE reports.case_number = ?`,
+      [case_number]
+    );
 
-    const [results] = await db.query(query, [case_number]);
-
-    if (results.length === 0) {
-      return res.status(404).json({ message: 'Case not found' });
+    if (!results.length) {
+      return res.status(404).json({ message: "Case not found" });
     }
 
     res.json(results[0]);
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
-
-// -------------------- Get Subtypes by Abuse Type --------------------
+/* ------------------------------------------------------------------
+   📌 GET SUBTYPES
+------------------------------------------------------------------ */
 router.get('/subtypes/:abuse_type_id', async (req, res) => {
   try {
-    const { abuse_type_id } = req.params;
-    const [results] = await db.query(
-      'SELECT id, sub_type_name FROM subtypes WHERE abuse_type_id = ?',
-      [abuse_type_id]
+    const id = cleanParam(req.params.abuse_type_id);
+    const [results] = await db.execute(
+      "SELECT id, sub_type_name FROM subtypes WHERE abuse_type_id = ?",
+      [id]
     );
+
     res.json(results);
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
-
-// ---------------- Update Report ----------------
+/* ------------------------------------------------------------------
+   ✏️ UPDATE REPORT
+------------------------------------------------------------------ */
 router.put('/:case_number', upload.single('file'), async (req, res) => {
   try {
-    const { case_number } = req.params;
-    const {
-      description,
-      phone_number,
-      full_name,
-      age,
-      location,
-      school_name,
-      status,
-      subtype_id,
-      grade
-    } = req.body;
+    const case_number = cleanParam(req.params.case_number);
 
-    if (!phone_number || !age || !location || !school_name || !status || !subtype_id || !grade) {
-      return res.status(400).json({ message: 'All required fields must be filled' });
+    const body = Object.fromEntries(
+      Object.entries(req.body).map(([k, v]) => [k, v ? clean(v) : null])
+    );
+
+    const {
+      description, phone_number, full_name,
+      age, location, school_name, status,
+      subtype_id, grade
+    } = body;
+
+    if (!description || !phone_number || !full_name || !age ||
+      !location || !school_name || !status || !subtype_id || !grade) {
+      return res.status(400).json({ message: "Required fields missing" });
     }
 
-    const subtypeIdSingle = Array.isArray(subtype_id) ? subtype_id[0] : subtype_id;
     const media_path = req.file ? `/uploads/${req.file.filename}` : null;
 
     const query = media_path
-      ? `UPDATE reports 
-         SET description=?, phone_number=?, full_name=?, age=?, location=?, school_name=?, status=?, subtype_id=?, image_path=?, grade=?, updated_at=NOW() 
+      ? `UPDATE reports SET description=?, phone_number=?, full_name=?, age=?, location=?, 
+         school_name=?, status=?, subtype_id=?, image_path=?, grade=?, updated_at=NOW()
          WHERE case_number=?`
-      : `UPDATE reports 
-         SET description=?, phone_number=?, full_name=?, age=?, location=?, school_name=?, status=?, subtype_id=?, grade=?, updated_at=NOW() 
+      : `UPDATE reports SET description=?, phone_number=?, full_name=?, age=?, location=?, 
+         school_name=?, status=?, subtype_id=?, grade=?, updated_at=NOW()
          WHERE case_number=?`;
 
     const values = media_path
-      ? [description, phone_number, full_name, age, location, school_name, status, subtypeIdSingle, media_path, grade, case_number]
-      : [description, phone_number, full_name, age, location, school_name, status, subtypeIdSingle, grade, case_number];
+      ? [description, phone_number, full_name, age, location, school_name, status,
+         subtype_id, media_path, grade, case_number]
+      : [description, phone_number, full_name, age, location, school_name, status,
+         subtype_id, grade, case_number];
 
-    const [result] = await db.query(query, values);
+    const [result] = await db.execute(query, values);
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Report not found' });
+    if (!result.affectedRows) {
+      return res.status(404).json({ message: "Report not found" });
     }
 
-    res.json({ message: 'Report updated successfully', case_number });
+    res.json({ message: "Report updated successfully", case_number });
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
-
-
-
-
-
 
 module.exports = router;
