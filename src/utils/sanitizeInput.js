@@ -5,7 +5,6 @@
 -------------------------------- */
 const SQLI_PATTERNS = [
   /(--|#|\/\*)/i,
-  /\b(OR|AND)\b\s+\d+=\d+/i,
   /\bUNION\b\s+SELECT\b/i,
   /\bSELECT\b.*\bFROM\b/i,
   /\bINSERT\b\s+INTO\b/i,
@@ -18,7 +17,11 @@ const SQLI_PATTERNS = [
   /0x[0-9A-F]+/i,
   /\bLOAD_FILE\b/i,
   /\bOUTFILE\b/i,
-  /['"`]\s*(OR|AND)\s*['"`]/i
+
+  // NEW STRONG PATTERNS
+  /['"]\s*(OR|AND)\s+['"]?\d*['"`]?/i,   
+  /\b(OR|AND)\b\s+\d+\s*=\s*\d+/i,       
+  /\b(OR|AND)\b.*=/i                      
 ];
 
 function isMaliciousInput(value) {
