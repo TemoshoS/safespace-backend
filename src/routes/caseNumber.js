@@ -8,14 +8,14 @@ router.get('/:case_number', async (req, res) => {
     const { case_number } = req.params;
 
     if (!case_number) {
-      return res.status(400).json({ message: 'Case number is required' });
+      return res.status(400).json({ message: 'Reference number is required' });
     }
 
     const query = 'SELECT case_number, status FROM abuse_reports WHERE case_number = ?';
     const [results] = await db.query(query, [case_number]);
 
     if (results.length === 0) {
-      return res.status(404).json({ message: 'Case not found' });
+      return res.status(404).json({ message: 'Reference number not found' });
     }
 
     return res.status(200).json(results[0]);

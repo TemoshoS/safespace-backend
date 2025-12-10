@@ -27,7 +27,7 @@ const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 }});
 /* -------------------------------
    CASE NUMBER GENERATION
 --------------------------------- */
-const abuseTypeMap = { 1: 'BU', 2: 'SB', 3: 'SX', 4: 'TP', 5: 'WP', 6: 'VL' };
+const abuseTypeMap = { 1: 'BU', 2: 'SA', 3: 'SX', 4: 'TP', 5: 'WP', 6: 'VL' };
 
 const generateCaseNumber = async (abuse_type_id) => {
   const prefix = abuseTypeMap[abuse_type_id] || 'XX';
@@ -40,7 +40,7 @@ const generateCaseNumber = async (abuse_type_id) => {
   const now = new Date();
   const day = String(now.getDate()).padStart(2, '0');
   const month = String(now.getMonth() + 1).padStart(2, '0');
-  return `CASE-${prefix}${formatted}${day}${month}`;
+  return `${prefix}${formatted}${day}${month}`;
 };
 
 /* -------------------------------
@@ -169,7 +169,7 @@ router.get('/case/:case_number', async (req, res) => {
       [case_number]
     );
 
-    if (!results.length) return res.status(404).json({ message: "Case not found" });
+    if (!results.length) return res.status(404).json({ message: "Reference Number not found" });
     res.json(results[0]);
 
   } catch (err) {
