@@ -1,6 +1,6 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const db = require('../database'); // your promise pool
+const db = require('../database'); // db connection 
 
 router.get('/search', async (req, res) => {
   try {
@@ -15,7 +15,7 @@ router.get('/search', async (req, res) => {
       LIMIT 10
     `;
 
-    const [results] = await db.query(sql, [`%${query}%`]); // promise-style
+    const [results] = await db.query(sql, [`%${query}%`]); 
     res.json(results);
 
   } catch (err) {
