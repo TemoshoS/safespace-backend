@@ -78,25 +78,43 @@ router.post('/', upload.single('file'), async (req, res) => {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
+    // --- Fetch school info automatically ---
+    const [schoolRows] = await db.execute(
+      "SELECT school_id, district_id, province_id FROM schools WHERE school_name = ?",
+      [school_name]
+    );
+
+    if (!schoolRows.length) {
+      return res.status(400).json({ message: "Invalid school name" });
+    }
+
+  const { school_id, district_id, province_id } = schoolRows[0];
+
+    // --- Handle file upload ---
     const file_path = req.file ? `/uploads/${req.file.filename}` : null;
+
+    // --- Generate case number ---
     const case_number = await generateCaseNumber(abuse_type_id);
 
+    // --- Insert report ---
     const query = `
       INSERT INTO reports
       (abuse_type_id, subtype_id, description, reporter_email, phone_number,
-       full_name, age, location, grade, school_name, case_number, status,
-       is_anonymous, image_path, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+       full_name, age, location, grade, school_name, school_id, district_id, province_id,
+       case_number, status, is_anonymous, image_path, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `;
 
     const values = [
       abuse_type_id, subtype_id ?? null, description, reporter_email ?? null,
       phone_number, full_name ?? null, age, location, grade ?? null,
-      school_name, case_number, status, is_anonymous, file_path
+      school_name, school_id, district_id, province_id,
+      case_number, status, is_anonymous, file_path
     ];
 
     const [result] = await db.execute(query, values);
 
+    // --- Send emails ---
     if (reporter_email)
       sendReportConfirmation(reporter_email, full_name, case_number);
 
@@ -121,6 +139,8 @@ router.post('/', upload.single('file'), async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
+
+
 
 /* -------------------------------
    GET SUBTYPES
@@ -179,49 +199,84 @@ router.get('/case/:case_number', async (req, res) => {
 /* -------------------------------
    UPDATE REPORT
 --------------------------------- */
+
 router.put('/:case_number', upload.single('file'), async (req, res) => {
   try {
+    // 🔐 Sanitize case number
     const case_number = cleanParam(req.params.case_number);
-    if (isMaliciousInput(case_number)) return res.status(403).json({ message: "Malicious input detected" });
-
-    const body = Object.fromEntries(
-      Object.entries(req.body).map(([k, v]) => [k, v ? clean(v) : null])
-    );
-
-    const badField = checkMalicious(body);
-    if (badField) return res.status(403).json({ message: `Malicious input detected in field: ${badField}` });
-
-    const { description, phone_number, full_name, age,
-      location, school_name, status, subtype_id, grade } = body;
-
-    if (!description || !phone_number || !full_name || !age ||
-        !location || !school_name || !status || !subtype_id || !grade) {
-      return res.status(400).json({ message: "Missing required fields" });
+    if (isMaliciousInput(case_number)) {
+      return res.status(403).json({ message: "Malicious input detected" });
     }
 
-    const media_path = req.file ? `/uploads/${req.file.filename}` : null;
+    // ✅ Allowed fields only
+    const allowedFields = [
+      "description",
+      "phone_number",
+      "full_name",
+      "age",
+      "location",
+      "school_name",
+      "status",
+      "subtype_id",
+      "grade"
+    ];
 
-    const query = media_path
-      ? `UPDATE reports SET description=?, phone_number=?, full_name=?, age=?, 
-         location=?, school_name=?, status=?, subtype_id=?, image_path=?, grade=?, 
-         updated_at=NOW() WHERE case_number=?`
-      : `UPDATE reports SET description=?, phone_number=?, full_name=?, age=?, 
-         location=?, school_name=?, status=?, subtype_id=?, grade=?, updated_at=NOW() 
-         WHERE case_number=?`;
+    const updates = {};
 
-    const values = media_path
-      ? [description, phone_number, full_name, age, location, school_name,
-         status, subtype_id, media_path, grade, case_number]
-      : [description, phone_number, full_name, age, location, school_name,
-         status, subtype_id, grade, case_number];
+    for (const field of allowedFields) {
+      const value = req.body[field];
 
+      if (
+        value !== undefined &&
+        value !== null &&
+        value !== '' &&
+        value !== 'null' &&
+        value !== 'NULL' &&
+        value !== 'undefined'
+      ) {
+        updates[field] = clean(value);
+      }
+    }
+
+    // 🖼️ Handle file upload safely
+    if (req.file) {
+      updates.image_path = `/uploads/${req.file.filename}`;
+    }
+
+    // 🚫 Nothing to update
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ message: "No valid fields provided to update" });
+    }
+
+    // 🧱 Build dynamic SQL
+    const fields = Object.keys(updates)
+      .map(key => `${key} = ?`)
+      .join(', ');
+
+    const values = [...Object.values(updates), case_number];
+
+    const query = `
+      UPDATE reports
+      SET ${fields}, updated_at = NOW()
+      WHERE case_number = ?
+    `;
+
+    // 🧠 Execute
     const [result] = await db.execute(query, values);
-    if (!result.affectedRows) return res.status(404).json({ message: "Report not found" });
 
-    res.json({ message: "Report updated successfully", case_number });
+    if (!result.affectedRows) {
+      return res.status(404).json({ message: "Report not found" });
+    }
+
+    res.json({
+      message: "Report updated successfully",
+      case_number,
+      updated_fields: Object.keys(updates)
+    });
 
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error("Update error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
