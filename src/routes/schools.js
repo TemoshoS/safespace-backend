@@ -16,7 +16,7 @@ router.get('/search', async (req, res) => {
       LIMIT 10
     `;
 
-    const [results] = await db.query(sql, [`%${query}%`]);
+    const [results] = await db.query(sql, [`${query}%`]);
     res.json(results); // [{ id, school_name, province }, ...]
   } catch (err) {
     console.error('DB Query Error:', err);

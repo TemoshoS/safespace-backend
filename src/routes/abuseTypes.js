@@ -4,7 +4,10 @@ const db = require('../database'); // your promise pool
 
 router.get('/', async (req, res) => {
   try {
-    const [results] = await db.query('SELECT * FROM abuse_types'); // promise API
+   const [results] = await db.query(
+  'SELECT * FROM abuse_types ORDER BY type_name ASC'
+);
+// promise API
     res.json(results);
   } catch (err) {
     console.error(err);
